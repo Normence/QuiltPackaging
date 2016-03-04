@@ -13,21 +13,28 @@ typedef fd_int::index index_int;
 typedef fod_int::index index_int;
 
 extern double compute_base(int x, int y, int w, int h); // (1 + Ac * d / a) ^ (-a)
-extern double compute_comp(); // (1 - f_{fire}) ^ N_{wire}
+extern double compute_comp(); // (1 - f_{wire}) ^ N_{wire}
+
 
 
 /**
  * N: resolution of partition
- * L: maximum recursive levels
  */
 int partition(fd_dbl &opt, fd_int &pos, int N, int x_size, int y_size, int w_size, int h_size) {
 
 	int x = 0, y = 0, w = 0, h = 0; // rectangle (x,y,w,h)
-	int l;  // iteration
+	int l;							// iteration
 	int lx = 0;                     // lx: cut position at x=lx
 	int ly = 0;                     // ly: cut position at y=ly
 	int p = 0;                      // encoding of the cut position
+	double df_dnst, alpha, f_wire;	// defect density, alpha(clustering parameter), failure rate
 
+	cout << "Input the defect density: ";
+	cin >> df_dnst;
+	cout << "Input alpha: ";
+	cin >> alpha;
+	cout << "Input the failure rate: ";
+	cin >> f_wire;
 
 	for (h = 1; h <= h_size; ++h) {  // traverse every possible rectangle
 		for (w = 1; w <= w_size; ++w) {
@@ -224,13 +231,16 @@ int main(int argc, char *argv[])
 {
 	/* passer */
 	int act_w, act_h, ini_x, ini_y;
+	cout << "Reading from the file 1..." << endl;
 	if(!getData(argc, argv, act_w, act_h, ini_x, ini_y))
 		return -1;
+	cout << "Succeed." << endl;
 
 	int N;
 	cout << "Input resolution N: ";
 	cin >> N;
 	N = getResolution(act_w, act_h, N);
+	cout << "The final resolution N is adjusted to: " << N << endl;
 
 	const double x_rsl = act_w / N, y_rsl = act_h / N; // actual metrics per resolution
 	int x_size = N, y_size = N, w_size = N, h_size = N;
@@ -241,9 +251,11 @@ int main(int argc, char *argv[])
 			for(int q=0; q<w_size+1; q++)
 				for(int p=0; p<h_size+1; p++)
 					com[i][j][q][p] = 0;
-
+	
+	cout << "Reading from the file 2..." << endl;
 	if(!getData(argc, argv, com, N, x_rsl, y_rsl, ini_x, ini_y)) // get data about composition
 		return -1;
+	cout << "Succeed." << endl;
 	// passer
 
 
