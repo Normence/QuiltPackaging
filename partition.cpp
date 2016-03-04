@@ -137,6 +137,7 @@ bool is_rlt_prime(int a, int b)  // is relatively prime
 		return false;
 }
 
+/* find a proper N' start from the given N */
 int getResolution(int w, int h, int N)
 {
 	while(!is_rlt_prime(w, N) || !is_rlt_prime(h, N))
@@ -145,7 +146,7 @@ int getResolution(int w, int h, int N)
 	return N;
 }
 
-bool getData(int argc, char *argv, fod_int com, int N, double x_rsl, double y_rsl, int ini_x, int ini_y)
+bool getData(int argc, char *argv, fod_int &com, int N, const double x_rsl, const double y_rsl, int ini_x, int ini_y)
 {
 	ifstream fin(argv[2], ios::in);
 	if(!fin.is_open())
@@ -197,11 +198,22 @@ bool getData(int argc, char *argv, fod_int com, int N, double x_rsl, double y_rs
 
 	fin.close();
 
+	for(int l=2; l<=N; l++) // horizontal
+		for(int x=0; x<=(N-l); x++)
+			for(int y=1; y<N; y++)
+				com[0][l][x][y] = com[0][l-1][x][y] + com[0][1][x+l-1][y];
+
+	for(int l=2; l<=N; l++) // vertical
+		for(int y=0; y<=(N-l); y++)
+			for(int x=1; x<N; x++)
+				com[1][l][x][y] = com[1][l-1][x][y] + com[1][1][x][y+l-1];
+
 	return true;
 }
 
 int main(int argc, char *argv[])
 {
+	/* passer */
 	int act_w, act_h, ini_x, ini_y;
 	if(!getData(argc, argv, act_w, act_h, ini_x, ini_y))
 		return -1;
@@ -211,8 +223,7 @@ int main(int argc, char *argv[])
 	cin >> N;
 	N = getResolution(act_w, act_h, N);
 
-	const double x_rsl = act_w / N, y_rsl = act_h / N;
-
+	const double x_rsl = act_w / N, y_rsl = act_h / N; // actual metrics per resolution
 	int x_size = N, y_size = N, w_size = N, h_size = N;
 
 	fod_int com(boost::extents[2][N][w_size+1][h_size]+1); // [vertical/horizontal][length][x][y]
@@ -222,8 +233,10 @@ int main(int argc, char *argv[])
 				for(int p=0; p<h_size+1; p++)
 					com[i][j][q][p] = 0;
 
-	if(!getData(argc, argv, com, N, x_rsl, y_rsl, ini_x, ini_y))
+	if(!getData(argc, argv, com, N, x_rsl, y_rsl, ini_x, ini_y)) // get data about composition
 		return -1;
+	// passer
+
 
 	// L...to-do
 	fd_dbl opt(boost::extents[x_size][y_size][w_size+1][h_size+1][L]); // optimal yield
