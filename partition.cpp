@@ -20,7 +20,7 @@ extern double compute_comp(); // (1 - f_{fire}) ^ N_{wire}
  * N: resolution of partition
  * L: maximum recursive levels
  */
-int partition(fd_dbl &opt, fd_int &pos,int N) {
+int partition(fd_dbl &opt, fd_int &pos, int N, int x_size, int y_size, int w_size, int h_size) {
 
 	int x = 0, y = 0, w = 0, h = 0; // rectangle (x,y,w,h)
 	int l;  // iteration
@@ -39,42 +39,51 @@ int partition(fd_dbl &opt, fd_int &pos,int N) {
 		}
 	}
 
-	for (l = 1; l < L; ++l) {
+	int L = 3; // default initial value
+	l = 1;
 
-		for (h = 1; h <= h_size; ++h) {
-			for (w = 1; w <= w_size; ++w) {
-				for (y = 0; y <= h_size-h; ++y) {
-					for (x = 0; x <= w_size-w; ++x) {
+	while(1){
+		for (; l <= L; ++l) {
 
-						opt[x][y][w][h][l] = opt[x][y][w][h][l-1];
-						pos[x][y][w][h][l] = -1; // no partition
-					
-						for (lx = x+1; lx <= x+w-1; ++lx) {
-							p   = lx - (x+1);
-							double yield = compute_comp(); // TO-DO
+			for (h = 1; h <= h_size; ++h) {
+				for (w = 1; w <= w_size; ++w) {
+					for (y = 0; y <= h_size-h; ++y) {
+						for (x = 0; x <= w_size-w; ++x) {
 
-							if (yield >= opt[x][y][w][h][l]) {
-								opt[x][y][w][h][l] = yield;
-								pos[x][y][w][h][l] = p;
+							opt[x][y][w][h][l] = opt[x][y][w][h][l-1];
+							pos[x][y][w][h][l] = -1; // no partition
+
+							for (lx = x+1; lx <= x+w-1; ++lx) {
+								p = lx - (x+1);
+								double yield = compute_comp(); // TO-DO
+
+								if (yield >= opt[x][y][w][h][l]) {
+									opt[x][y][w][h][l] = yield;
+									pos[x][y][w][h][l] = p;
+								}
 							}
-						}
-						
-						for (ly = y+1; ly <= y+h-1; ++ly) {
-							p   = (w-1) + ly - (y+1);  
-							double yield = compute_comp(); // TO-DO
 
-							if (yield >= opt[x][y][w][h][l]) {
-								opt[x][y][w][h][l] = yield;
-								pos[x][y][w][h][l] = p;
+							for (ly = y+1; ly <= y+h-1; ++ly) {
+								p = (w-1) + ly - (y+1);  
+								double yield = compute_comp(); // TO-DO
+
+								if (yield >= opt[x][y][w][h][l]) {
+									opt[x][y][w][h][l] = yield;
+									pos[x][y][w][h][l] = p;
+								}
 							}
 						}
 					}
 				}
 			}
+
+			if(pos[x][y][w][h][l] == -1)
+				break;
 		}
 
-		if(pos[x][y][w][h][l] == -1)
-			break;
+		L *= 2;
+		opt.resize(extents[x_size][y_size][w_size+1][h_size+1][L]);
+		pos.resize(extents[x_size][y_size][w_size+1][h_size+1][L]);
 	}
 
 	return l;
@@ -238,12 +247,11 @@ int main(int argc, char *argv[])
 	// passer
 
 
-	// L...to-do
 	fd_dbl opt(boost::extents[x_size][y_size][w_size+1][h_size+1][L]); // optimal yield
 	fd_int pos(boost::extents[x_size][y_size][w_size+1][h_size+1][L]);  // cut position
 
 	int l;  // best recursive level
-	l = partition(opt, pos, N);
+	l = partition(opt, pos, N, x_size, y_size, w_size, h_size);
 	
 	return 0;
 }
