@@ -1,3 +1,9 @@
+/*
+   Copyright 2016 Peking University
+   Author(s): Wenyu Luo <normence@gmail.com>
+              Guojie Luo <gluo@pku.edu.cn>
+*/
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -26,10 +32,10 @@ double wire_yield(double f_wire, int count) {
   @w_size : #col of the partition grids
   @h_size : #row of the partition grids
  */
-int Partition(DblArr5d &opt, IntArr5d &pos, int w_size, int h_size) {
+int Partition(DblArr5d &opt, IntArr5d &pos, IntArr4d &wire_count, int w_size, int h_size) {
   int L = 3; // maximum level of partition: an initial guess
-  opt.resize(extents[L+1][w_size][h_size][w_size+1][h_size+1]);
-  pos.resize(extents[L+1][w_size][h_size][w_size+1][h_size+1]);
+  opt.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
+  pos.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
 
 	int x = 0, y = 0, w = 0, h = 0; // rectangle (x,y,w,h)
 	int lx = 0;                     // lx: cut position at x=lx
@@ -50,7 +56,7 @@ int Partition(DblArr5d &opt, IntArr5d &pos, int w_size, int h_size) {
 	cout << "Input the failure rate: ";
 	cin >> f_wire;
 
-  auto meter = [unit](int mark) {return unit*mark}
+  auto meter = [unit](int mark) {return unit*mark;};
 
   // traverse every possible rectangle
 	for (h = 1; h <= h_size; ++h) {
@@ -81,11 +87,11 @@ int Partition(DblArr5d &opt, IntArr5d &pos, int w_size, int h_size) {
 								double yield = 
                     opt[l-1][x][y][lx-x][h] *
                     opt[l-1][lx][y][w-(lx-x)][h] *
-                    wire_yield(wire_count[1][h][lx][y]);
+                    wire_yield(f_wire, wire_count[1][h][lx][y]);
 
-								if (yield >= opt[x][y][w][h][l]) {
-									opt[x][y][w][h][l] = yield;
-									pos[x][y][w][h][l] = p;
+								if (yield >= opt[l][x][y][w][h]) {
+									opt[l][x][y][w][h] = yield;
+									pos[l][x][y][w][h] = p;
 								}
 							}
 
@@ -94,11 +100,11 @@ int Partition(DblArr5d &opt, IntArr5d &pos, int w_size, int h_size) {
 								double yield =
                     opt[l-1][x][y][w][ly-y] *
                     opt[l-1][x][ly][w][h-(ly-y)] *
-                    wire_yield(wire_count[0][w][x][ly]);
+                    wire_yield(f_wire, wire_count[0][w][x][ly]);
 
-								if (yield >= opt[x][y][w][h][l]) {
-									opt[x][y][w][h][l] = yield;
-									pos[x][y][w][h][l] = p;
+								if (yield >= opt[l][x][y][w][h]) {
+									opt[l][x][y][w][h] = yield;
+									pos[l][x][y][w][h] = p;
 								}
 							}
 						}
@@ -113,11 +119,11 @@ int Partition(DblArr5d &opt, IntArr5d &pos, int w_size, int h_size) {
       break;
 
 		L += 3; // the next guess of the maximum level of partition
-		opt.resize(extents[L+1][w_size][h_size][w_size+1][h_size+1]);
-		pos.resize(extents[L+1][w_size][h_size][w_size+1][h_size+1]);
+		opt.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
+		pos.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
 	}
 
-	return l;
+	return l-1;
 }
 
 /** read the graph file in the ISPD08 contest format
@@ -227,9 +233,11 @@ bool ReadRouting(string file_rt, IntArr4d &wire_count, int N,
       auto xform = [rsl_w,rsl_h,ini_x,ini_y](int& x, int& y) {
         x = int((x - ini_x) / rsl_w);
         y = int((y - ini_y) / rsl_h);
-      }
+      };
       xform(x1, y1);
       xform(x2, y2);
+
+      //if (x1 > x2 || y1 > y2) { swap(x1,x2); swap(y1,y2); }
 
 			if (x1 < x2) {
         assert(y1 == y2);
@@ -243,7 +251,7 @@ bool ReadRouting(string file_rt, IntArr4d &wire_count, int N,
 				for(int i=y1+1; i<=y2; i++)
 					wire_count[0][1][x1][i]++;
 			} else {
-        assert(false);
+        assert(x1 == x2 && y1 == y2);
       }
 
 			fin.get(ch);
@@ -291,9 +299,8 @@ int main(int argc, char *argv[]) {
 	int N; // #row & #col of the partition grids
 	cout << "Input resolution N: ";
   cin >> N;
-  cout << "The resolution N is adjusted from " << N
-      << " to " << (N = GetResolution(act_w, act_h, N))
-      << endl;
+  N = GetResolution(act_w, act_h, N);
+  cout << "The resolution N is adjusted to: " << N << endl;
 
   // the number of wires across an edge in the partition grids
   //   1st dim: 0 - horizontal edge; 1 - vertical edge
@@ -320,8 +327,9 @@ int main(int argc, char *argv[]) {
 	DblArr5d opt;
 	IntArr5d pos;
 
-	int l; // the optimal level for partition
-	l = Partition(opt, pos, N, N, N, N);
+  // the optimal level for partition
+	int l = Partition(opt, pos, wire_count, N, N);
+  cout << "optimal yield = " << opt[l][0][0][N][N] << " at level " << l << endl;
 	
 	return EXIT_SUCCESS;
 }
