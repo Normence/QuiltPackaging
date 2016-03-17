@@ -97,19 +97,22 @@ int partition(fd_dbl &opt, fd_int &pos, int N, int x_size, int y_size, int w_siz
 
 }
 
-bool getData(int argc, char *argv[], &w, &h, &x, &y) // get left-bottom (x, y), width and height
-{
-	if(argc != 3)
-		return false;
-
-	ifstream fin(argv[1], ios::in);
-	if(!fin.is_open())
-		return false;
+/** read the input file in the ISPD08 contest format
+  @file_gr : the input file
+  @w       : the width of the routing region
+  @h       : the height of the routing region
+  @x       : the x coordinate of the lower-left corner
+  @y       : the y coordinate of the lower-left corner
+  */
+bool ReadGraph(string file_gr, int &w, int &h, int &x, int &y) {
+	ifstream fin(file_gr, ios::in);
+	if (!fin.is_open()) return false;
 
 	string no_use;
 	fin >> no_use;
 
-	int w1, h1;
+	int w1; // #col of the routing grids
+  int h1; // #row of the routing grids
 	fin >> w1 >> h1;
 
 	fin.ignore(255, '\n');
@@ -121,7 +124,8 @@ bool getData(int argc, char *argv[], &w, &h, &x, &y) // get left-bottom (x, y), 
 
 	fin >> x >> y;
 	
-	int w2, h2;
+	int w2; // the width of a routing grid
+  int h2; // the height of a routing grid
 	fin >> w2 >> h2;
 
 	w = w1 * w2;
@@ -132,8 +136,8 @@ bool getData(int argc, char *argv[], &w, &h, &x, &y) // get left-bottom (x, y), 
 	return true;
 }
 
-bool is_rlt_prime(int a, int b)  // is relatively prime
-{
+/** is relatively prime */
+bool is_rlt_prime(int a, int b) {
 	int temp;
 	if(a < b){
 		temp = a;
@@ -147,16 +151,12 @@ bool is_rlt_prime(int a, int b)  // is relatively prime
 		b = temp;
 	}
 
-	if(b == 1)
-		return true;
-	else
-		return false;
+  return (b == 1);
 }
 
-/* find a proper N' start from the given N */
-int getResolution(int w, int h, int N)
-{
-	while(!is_rlt_prime(w, N) || !is_rlt_prime(h, N))
+/** find a proper N' start from the given N */
+int GetResolution(int w, int h, int N) {
+	while (!is_rlt_prime(w, N) || !is_rlt_prime(h, N))
 		N++;
 
 	return N;
@@ -227,43 +227,59 @@ bool getData(int argc, char *argv, fod_int &com, int N, const double x_rsl, cons
 	return true;
 }
 
-int main(int argc, char *argv[])
-{
-	/* passer */
-	int act_w, act_h, ini_x, ini_y;
-	cout << "Reading from the file 1..." << endl;
-	if(!getData(argc, argv, act_w, act_h, ini_x, ini_y))
-		return -1;
+int main(int argc, char *argv[]) {
+  if (argc < 3) {
+    cerr << "Usage: partition <graph> <routing>" << endl;
+    return EXIT_FAILURE;
+  }
+  string file_gr = argv[1]; // the input file in the ISPD08 contest format
+  string file_rt = argv[2]; // the output file in the ISPD08 contest format
+
+	// parser begin //////////////////////////////////////////////////////////////
+	int act_w; // the width of the routing region
+  int act_h; // the height of the routing region
+  int ini_x; // the x coordinate of the lower-left corner
+  int ini_y; // the y coordinate of the lower-left corner
+	cout << "Reading from the file '" << file_gr << "'..." << endl;
+	if ( ! ReadGraph(file_gr, act_w, act_h, ini_x, ini_y))
+		return EXIT_FAILURE;
 	cout << "Succeed." << endl;
 
-	int N;
+	int N; // #row & #col of the partition grids
 	cout << "Input resolution N: ";
-	cin >> N;
-	N = getResolution(act_w, act_h, N);
-	cout << "The final resolution N is adjusted to: " << N << endl;
+  cin >> N;
+  cout << "The resolution N is adjusted from " << N
+      << " to " << (N = GetResolution(act_w, act_h, N))
+      << endl;
 
-	const double x_rsl = act_w / N, y_rsl = act_h / N; // actual metrics per resolution
-	int x_size = N, y_size = N, w_size = N, h_size = N;
+	const double x_rsl = act_w / N; // the width of a partition grid
+  const double y_rsl = act_h / N; // the height of a partition grid
+	int x_size = N;
+  int y_size = N;
+  int w_size = N;
+  int h_size = N;
 
-	fod_int com(boost::extents[2][N][w_size+1][h_size]+1); // [vertical/horizontal][length][x][y]
-	for(int i=0; i<2; i++)
-		for(int j=0; j<N; j++)
-			for(int q=0; q<w_size+1; q++)
-				for(int p=0; p<h_size+1; p++)
-					com[i][j][q][p] = 0;
+  // the number of wires across an edge in the partition grids
+  //   1st dim: 0 - horizontal edge; 1 - vertical edge
+  //   2nd dim: the length of the edge in {1, 2, ..., N-1}
+  //   3rd dim: the x coordinate of the left (bottom) end
+  //   4th dim: the y coordinate of the left (bottom) end
+	fod_int com(boost::extents[2][N][w_size+1][h_size+1]);
+  std::fill(com.data(), com.data() + com.num_elements(), 0);
 	
-	cout << "Reading from the file 2..." << endl;
-	if(!getData(argc, argv, com, N, x_rsl, y_rsl, ini_x, ini_y)) // get data about composition
+	cout << "Reading from the file '" << file_rt << "'..." << endl;
+  // count the number of wires across any edge
+	if ( ! getData(argc, argv, com, N, x_rsl, y_rsl, ini_x, ini_y))
 		return -1;
 	cout << "Succeed." << endl;
-	// passer
+	// parser end ////////////////////////////////////////////////////////////////
 
 
 	fd_dbl opt(boost::extents[x_size][y_size][w_size+1][h_size+1][L]); // optimal yield
-	fd_int pos(boost::extents[x_size][y_size][w_size+1][h_size+1][L]);  // cut position
+	fd_int pos(boost::extents[x_size][y_size][w_size+1][h_size+1][L]); // cut position
 
 	int l;  // best recursive level
 	l = partition(opt, pos, N, x_size, y_size, w_size, h_size);
 	
-	return 0;
+	return EXIT_SUCCESS;
 }
