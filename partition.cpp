@@ -5,6 +5,7 @@
 */
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <string>
 #include <boost/multi_array.hpp>
@@ -25,6 +26,74 @@ double area_yield(double area, double df_dnst, double alpha) {
 /** (1 - f_wire) ^ count */
 double wire_yield(double f_wire, int count) {
   return pow(1 - f_wire, count);
+}
+
+/** visualize wire_count */
+void PrintWireCount(IntArr4d& wire_count, int w_size, int h_size) {
+  int count_max = 0; {
+    // horizontal edges
+    for (int x=0; x<=w_size-1; x++)
+      for (int y=0; y<=h_size; y++)
+        count_max = max(count_max, wire_count[0][1][x][y]);
+    // vertical edges
+    for(int y=0; y<=h_size-1; y++)
+      for(int x=0; x<=w_size; x++)
+        count_max = max(count_max, wire_count[1][1][x][y]);
+  }
+
+  auto ndigits = [](int n) {
+    return (n==0)? 1 : int(floor(log10(n))) + 1;
+  };
+
+  int field_wth = [](int n) {
+    while (n%4!=2) ++n;
+    return n;
+  }(ndigits(count_max));
+
+  auto print_hrztl = [=](int y) {
+    cout << "+";
+    for (int x = 0; x < w_size; ++x) {
+      int count = wire_count[0][1][x][y];
+      int center = ndigits(count);
+      int right = (field_wth - center)/2;
+      int left = field_wth - center - right;
+      cout << "--" << string(left,' ') << count << string(right,' ') << "--+";
+    }
+    cout << endl;
+  };
+  auto print_vrtcl = [=](int y) {
+    auto print_pillars = [=]() {
+      for (int i = 0; i < (field_wth/2-1); ++i) {
+        for (int x = 0; x <= w_size; ++x) {
+          cout << "|" << string(2+field_wth+2,' ');
+        }
+        cout << endl;
+      }
+    };
+    auto print_spaces = [=]() {
+      for (int x = 0; x <= w_size; ++x) {
+        cout << " " << string(2+field_wth+2,' ');
+      }
+      cout << endl;
+    };
+    print_pillars();
+    print_spaces();
+    for (int x = 0; x <= w_size; ++x) {
+      int count = wire_count[1][1][x][y];
+      cout << left << setw(1+2+field_wth+2) << count;
+    }
+    cout << endl;
+    print_spaces();
+    print_pillars();
+  };
+
+  cout << endl;
+  for (int x = 0; x < w_size; ++x) {
+    print_hrztl(x);
+    print_vrtcl(x);
+  }
+  print_hrztl(w_size);
+  cout << endl;
 }
 
 /** find a recursive slicing partition with an optimal yield
@@ -334,6 +403,8 @@ int main(int argc, char *argv[]) {
   if ( ! ReadRouting(file_rt, wire_count, N, act_w, act_h, ini_x, ini_y))
     return -1;
   cout << "Succeed." << endl;
+
+  PrintWireCount(wire_count, N, N);
   // parser end ////////////////////////////////////////////////////////////////
 
   typedef boost::general_storage_order<5> storage;
