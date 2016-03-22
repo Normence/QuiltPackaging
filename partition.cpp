@@ -16,6 +16,7 @@ using namespace std;
 typedef boost::multi_array<double,5> DblArr5d;
 typedef boost::multi_array<int,5> IntArr5d;
 typedef boost::multi_array<int,4> IntArr4d;
+typedef boost::multi_array<int,3> IntArr3d;
 
 /** (1 + Ac * d / alpha) ^ (-alpha) */
 double area_yield(double area, double df_dnst, double alpha) {
@@ -96,6 +97,74 @@ void PrintWireCount(IntArr4d& wire_count, int w_size, int h_size) {
   cout << endl;
 }
 
+/** visualize cut lines */
+void PrintCutLines(IntArr4d& wire_count, IntArr3d& cut, int w_size, int h_size) {
+  int count_max = 0; {
+    // horizontal edges
+    for (int x=0; x<=w_size-1; x++)
+      for (int y=0; y<=h_size; y++)
+        count_max = max(count_max, wire_count[0][1][x][y]);
+    // vertical edges
+    for(int y=0; y<=h_size-1; y++)
+      for(int x=0; x<=w_size; x++)
+        count_max = max(count_max, wire_count[1][1][x][y]);
+  }
+
+  auto ndigits = [](int n) {
+    return (n==0)? 1 : int(floor(log10(n))) + 1;
+  };
+
+  int field_wth = [](int n) {
+    while (n%4!=2) ++n;
+    return n;
+  }(ndigits(count_max));
+
+  auto print_hrztl = [=](int y) {
+    cout << "+";
+    for (int x = 0; x < w_size; ++x) {
+      int count = wire_count[0][1][x][y];
+      char symb = cut[0][x][y]? '-' : '.';
+      int center = ndigits(count);
+      int right = (field_wth - center)/2;
+      int left = field_wth - center - right;
+      cout << string(2,symb) << string(left,symb) << count << string(right,symb) << string(2,symb) << "+";
+    }
+    cout << endl;
+  };
+  auto print_vrtcl = [=](int y) {
+    auto print_pillars = [=]() {
+      for (int i = 0; i < (field_wth/2-1); ++i) {
+        for (int x = 0; x <= w_size; ++x) {
+          char symb = cut[1][x][y]? '|' : '.';
+          cout << symb << string(2+field_wth+2,' ');
+        }
+        cout << endl;
+      }
+    };
+    auto print_spaces = [=]() {
+      for (int x = 0; x <= w_size; ++x) {
+        cout << " " << string(2+field_wth+2,' ');
+      }
+      cout << endl;
+    };
+    print_pillars();
+    for (int x = 0; x <= w_size; ++x) {
+      int count = wire_count[1][1][x][y];
+      cout << left << setw(1+2+field_wth+2) << count;
+    }
+    cout << endl;
+    print_pillars();
+  };
+
+  cout << endl;
+  for (int x = 0; x < w_size; ++x) {
+    print_hrztl(x);
+    print_vrtcl(x);
+  }
+  print_hrztl(w_size);
+  cout << endl;
+}
+
 /** find a recursive slicing partition with an optimal yield
   @opt    : the optimal yield
   @pos    : the cut position
@@ -148,68 +217,149 @@ int Partition(DblArr5d& opt, IntArr5d& pos, IntArr4d& wire_count,
   }
 
   int l = 1; // level of partition
-  while (true) {
+
+  auto recursive_partition = [&]() {
+
     while (true) {
+      while (true) {
 
-      for (h = 1; h <= h_size; ++h) {
-        for (w = 1; w <= w_size; ++w) {
-          for (y = 0; y <= h_size-h; ++y) {
-            for (x = 0; x <= w_size-w; ++x) {
+        for (h = 1; h <= h_size; ++h) {
+          for (w = 1; w <= w_size; ++w) {
+            for (y = 0; y <= h_size-h; ++y) {
+              for (x = 0; x <= w_size-w; ++x) {
 
-              opt[l][x][y][w][h] = opt[l-1][x][y][w][h];
-              pos[l][x][y][w][h] = -1; // no partition
+                opt[l][x][y][w][h] = opt[l-1][x][y][w][h];
+                pos[l][x][y][w][h] = -1; // no partition
 
-              for (lx = x+1; lx <= x+w-1; ++lx) {
-                p = lx - (x+1);
-                double yield =
-                  wire_yield(f_wire, wire_count[1][h][lx][y]) *
-                  min(opt[l-1][x][y][lx-x][h], opt[l-1][lx][y][w-(lx-x)][h]);
+                for (lx = x+1; lx <= x+w-1; ++lx) {
+                  p = lx - (x+1);
+                  double yield =
+                    wire_yield(f_wire, wire_count[1][h][lx][y]) *
+                    min(opt[l-1][x][y][lx-x][h], opt[l-1][lx][y][w-(lx-x)][h]);
 
-                if (yield >= opt[l][x][y][w][h]) {
-                  opt[l][x][y][w][h] = yield;
-                  pos[l][x][y][w][h] = p;
+                  if (yield >= opt[l][x][y][w][h]) {
+                    opt[l][x][y][w][h] = yield;
+                    pos[l][x][y][w][h] = p;
+                  }
                 }
-              }
 
-              for (ly = y+1; ly <= y+h-1; ++ly) {
-                p = (w-1) + ly - (y+1);  
-                double yield =
-                  wire_yield(f_wire, wire_count[0][w][x][ly]) *
-                  min(opt[l-1][x][y][w][ly-y], opt[l-1][x][ly][w][h-(ly-y)]);
+                for (ly = y+1; ly <= y+h-1; ++ly) {
+                  p = (w-1) + ly - (y+1);  
+                  double yield =
+                    wire_yield(f_wire, wire_count[0][w][x][ly]) *
+                    min(opt[l-1][x][y][w][ly-y], opt[l-1][x][ly][w][h-(ly-y)]);
 
-                if (yield >= opt[l][x][y][w][h]) {
-                  opt[l][x][y][w][h] = yield;
-                  pos[l][x][y][w][h] = p;
+                  if (yield >= opt[l][x][y][w][h]) {
+                    opt[l][x][y][w][h] = yield;
+                    pos[l][x][y][w][h] = p;
+                  }
                 }
               }
             }
           }
         }
+
+        cout << "level " << l << " :"
+          << " yield = " << opt[l][0][0][w_size][h_size]
+          << " pos = " << pos[l][0][0][w_size][h_size]
+          << endl;
+
+        if (l == L || pos[l][0][0][w_size][h_size] == -1)
+          break;
+        else
+          l += 1;
       }
-
-      cout << "level " << l << " :"
-        << " yield = " << opt[l][0][0][w_size][h_size]
-        << " pos = " << pos[l][0][0][w_size][h_size]
-        << endl;
-
-      if (l == L || pos[l][0][0][w_size][h_size] == -1)
+      if (pos[l][0][0][w_size][h_size] == -1)
         break;
-      else
-        l += 1;
+
+      L += 3; // the next guess of the maximum level of partition
+      opt.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
+      pos.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
     }
-    if (pos[l][0][0][w_size][h_size] == -1)
-      break;
 
-    L += 3; // the next guess of the maximum level of partition
-    opt.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
-    pos.resize(boost::extents[L+1][w_size][h_size][w_size+1][h_size+1]);
-  }
+    cout << "N x N = " << w_size << " x " << h_size << endl;
+    cout << "defect density = " << df_dnst << "/m^2" << endl;
+    cout << "clustering parameter = " << alpha << endl;
+    cout << "wire failure rate = " << f_wire << endl;
+    cout << "optimal yield = " << opt[l-1][0][0][w_size][h_size] << " at level " << l-1 << endl;
+  };
 
-  cout << "N x N = " << w_size << " x " << h_size << endl;
-  cout << "defect density = " << df_dnst << "/m^2" << endl;
-  cout << "clustering parameter = " << alpha << endl;
-  cout << "wire failure rate = " << f_wire << endl;
-  cout << "optimal yield = " << opt[l-1][0][0][w_size][h_size] << " at level " << l-1 << endl;
+  auto unconstrained_partition = [&]() {
+
+    for (h = 1; h <= h_size; ++h) {
+      for (w = 1; w <= w_size; ++w) {
+        for (y = 0; y <= h_size-h; ++y) {
+          for (x = 0; x <= w_size-w; ++x) {
+
+            opt[1][x][y][w][h] = opt[0][x][y][w][h];
+            pos[1][x][y][w][h] = -1; // no partition
+
+            for (lx = x+1; lx <= x+w-1; ++lx) {
+              p = lx - (x+1);
+              double yield =
+                wire_yield(f_wire, wire_count[1][h][lx][y]) *
+                min(opt[1][x][y][lx-x][h], opt[1][lx][y][w-(lx-x)][h]);
+
+              if (yield >= opt[1][x][y][w][h]) {
+                opt[1][x][y][w][h] = yield;
+                pos[1][x][y][w][h] = p;
+              }
+            }
+
+            for (ly = y+1; ly <= y+h-1; ++ly) {
+              p = (w-1) + ly - (y+1);  
+              double yield =
+                wire_yield(f_wire, wire_count[0][w][x][ly]) *
+                min(opt[1][x][y][w][ly-y], opt[1][x][ly][w][h-(ly-y)]);
+
+              if (yield >= opt[1][x][y][w][h]) {
+                opt[1][x][y][w][h] = yield;
+                pos[1][x][y][w][h] = p;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 0 - horizontal edge; 1 - vertical edge
+    IntArr3d cut(boost::extents[2][w_size+1][h_size+1]);
+    fill(cut.data(), cut.data()+cut.num_elements(), 0);
+    std::function<void(int,int,int,int)> collect_cuts =
+      [&](int x, int y, int w, int h) {
+        int p = pos[1][x][y][w][h];
+        if (p != -1) {
+          if (p < w-1) {
+            // vertical cut
+            int lx = p + (x+1);
+            for (int yy = y; yy < y+h; ++yy) {
+              cut[1][lx][yy] = 1;
+            }
+            collect_cuts(x, y, lx-x, h);
+            collect_cuts(lx, y, w-(lx-x), h);
+          } else {
+            // horizontal cut
+            int ly = p - (w-1) + (y+1);
+            for (int xx = x; xx < x+w; ++xx) {
+              cut[0][xx][ly] = 1;
+            }
+            collect_cuts(x, y, w, ly-y);
+            collect_cuts(x, ly, w, h-(ly-y));
+          }
+        }
+      };
+    collect_cuts(0, 0, w_size, h_size);
+    PrintCutLines(wire_count, cut, w_size, h_size);
+
+    cout << "N x N = " << w_size << " x " << h_size << endl;
+    cout << "defect density = " << df_dnst << "/m^2" << endl;
+    cout << "clustering parameter = " << alpha << endl;
+    cout << "wire failure rate = " << f_wire << endl;
+    cout << "optimal yield = " << opt[1][0][0][w_size][h_size]
+      << " with pos = " << pos[1][0][0][w_size][h_size] << endl;
+  };
+
+  unconstrained_partition();
 
   return l-1;
 }
@@ -403,8 +553,6 @@ int main(int argc, char *argv[]) {
   if ( ! ReadRouting(file_rt, wire_count, N, act_w, act_h, ini_x, ini_y))
     return -1;
   cout << "Succeed." << endl;
-
-  PrintWireCount(wire_count, N, N);
   // parser end ////////////////////////////////////////////////////////////////
 
   typedef boost::general_storage_order<5> storage;
